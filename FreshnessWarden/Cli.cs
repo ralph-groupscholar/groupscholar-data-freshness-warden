@@ -1,0 +1,162 @@
+using System.Globalization;
+
+namespace FreshnessWarden;
+
+public static class Cli
+{
+    public static Dictionary<string, string> ParseOptions(IEnumerable<string> args)
+    {
+        var options = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var list = args.ToList();
+        for (var i = 0; i < list.Count; i++)
+        {
+            var current = list[i];
+            if (!current.StartsWith("--", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var key = current[2..];
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                continue;
+            }
+
+            if (i + 1 >= list.Count || list[i + 1].StartsWith("--", StringComparison.Ordinal))
+            {
+                options[key] = "";
+                continue;
+            }
+
+            options[key] = list[i + 1];
+            i++;
+        }
+
+        return options;
+    }
+
+    public static string Require(Dictionary<string, string> options, string key)
+    {
+        if (!options.TryGetValue(key, out var value) || string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidOperationException($"Missing required option --{key}.");
+        }
+
+        return value.Trim();
+    }
+
+    public static int RequireInt(Dictionary<string, string> options, string key)
+    {
+        var value = Require(options, key);
+        if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+        {
+            throw new InvalidOperationException($"Option --{key} must be an integer.");
+        }
+
+        return parsed;
+    }
+
+    public static int? OptionalInt(Dictionary<string, string> options, string key)
+    {
+        if (!options.TryGetValue(key, out var value) || string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+        {
+            throw new InvalidOperationException($"Option --{key} must be an integer.");
+        }
+
+        return parsed;
+    }
+
+    public static string? Optional(Dictionary<string, string> options, string key)
+    {
+        return options.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value)
+            ? value.Trim()
+            : null;
+    }
+
+    public static string RequireStatus(Dictionary<string, string> options, string key)
+    {
+        var status = Require(options, key).ToLowerInvariant();
+        return status switch
+        {
+            "ok" or "warning" or "failed" => status,
+            _ => throw new InvalidOperationException("Status must be one of: ok, warning, failed.")
+        };
+    }
+
+    public static void PrintStale(IReadOnlyList<StaleSource> staleSources)
+    {
+        if (staleSources.Count == 0)
+        {
+            Console.WriteLine("No stale sources detected.");
+            return;
+        }
+
+        Console.WriteLine("Stale sources:");
+        foreach (var source in staleSources)
+        {
+            var last = source.LastCheckedAt.HasValue
+                ? source.LastCheckedAt.Value.ToString("u")
+                : "never";
+            Console.WriteLine($"- {source.Name} (owner: {source.Owner}, SLA: {source.SlaHours}h, last: {last})");
+        }
+    }
+
+    public static void PrintSummary(SummaryReport report)
+    {
+        Console.WriteLine($"Summary for last {report.Days} days:");
+        Console.WriteLine($"- ok: {report.OkCount}");
+        Console.WriteLine($"- warning: {report.WarningCount}");
+        Console.WriteLine($"- failed: {report.FailedCount}");
+        Console.WriteLine($"- stale sources: {report.StaleSources.Count}");
+        if (report.StaleSources.Count > 0)
+        {
+            foreach (var source in report.StaleSources)
+            {
+                var last = source.LastCheckedAt.HasValue
+                    ? source.LastCheckedAt.Value.ToString("u")
+                    : "never";
+                Console.WriteLine($"  - {source.Name} (owner: {source.Owner}, last: {last})");
+            }
+        }
+    }
+
+    public static void PrintStatus(IReadOnlyList<SourceStatus> statuses)
+    {
+        if (statuses.Count == 0)
+        {
+            Console.WriteLine("No sources found.");
+            return;
+        }
+
+        Console.WriteLine("Source status:");
+        foreach (var status in statuses)
+        {
+            var last = status.LastCheckedAt.HasValue
+                ? status.LastCheckedAt.Value.ToString("u")
+                : "never";
+            var lastStatus = string.IsNullOrWhiteSpace(status.LastStatus) ? "none" : status.LastStatus;
+            Console.WriteLine($"- {status.Name} (owner: {status.Owner}, SLA: {status.SlaHours}h, last: {last}, status: {lastStatus})");
+        }
+    }
+
+    public static void PrintHelp()
+    {
+        Console.WriteLine("Groupscholar Data Freshness Warden");
+        Console.WriteLine("Commands:");
+        Console.WriteLine("  init-db");
+        Console.WriteLine("  add-source --name <name> --owner <owner> --sla-hours <hours> [--notes <notes>]");
+        Console.WriteLine("  log-check --source <name> --status <ok|warning|failed> [--details <details>]");
+        Console.WriteLine("  status [--owner <owner>]");
+        Console.WriteLine("  list-stale");
+        Console.WriteLine("  remove-source --name <name>");
+        Console.WriteLine("  summary [--days <days>]");
+        Console.WriteLine();
+        Console.WriteLine("Environment variables:");
+        Console.WriteLine("  GS_DB_HOST, GS_DB_PORT, GS_DB_NAME, GS_DB_USER, GS_DB_PASSWORD");
+    }
+}

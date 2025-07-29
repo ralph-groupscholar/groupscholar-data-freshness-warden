@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="FreshnessWarden.Tests/FreshnessWarden.Tests.csproj" />
+  <Project Path="FreshnessWarden/FreshnessWarden.csproj" />
+</Solution>
