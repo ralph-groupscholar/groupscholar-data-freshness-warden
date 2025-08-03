@@ -125,6 +125,51 @@ public static class Cli
         }
     }
 
+    public static void PrintRollup(IReadOnlyList<SourceRollup> sources)
+    {
+        if (sources.Count == 0)
+        {
+            Console.WriteLine("No sources registered.");
+            return;
+        }
+
+        Console.WriteLine("Source rollup:");
+        foreach (var source in sources)
+        {
+            var last = source.LastCheckedAt.HasValue
+                ? source.LastCheckedAt.Value.ToString("u")
+                : "never";
+            var nextDue = source.NextDueAt.HasValue
+                ? source.NextDueAt.Value.ToString("u")
+                : "n/a";
+            var status = string.IsNullOrWhiteSpace(source.LastStatus) ? "n/a" : source.LastStatus;
+            var staleLabel = source.IsStale ? "stale" : "fresh";
+            Console.WriteLine($"- {source.Name} ({source.Owner}, SLA: {source.SlaHours}h)");
+            Console.WriteLine($"  last: {last} | status: {status} | next due: {nextDue} | {staleLabel}");
+            if (!string.IsNullOrWhiteSpace(source.LastDetails))
+            {
+                Console.WriteLine($"  details: {source.LastDetails}");
+            }
+        }
+    }
+
+    public static void PrintHistory(string sourceName, IReadOnlyList<SourceCheck> history)
+    {
+        Console.WriteLine($"Recent checks for {sourceName}:");
+        if (history.Count == 0)
+        {
+            Console.WriteLine("  (no checks yet)");
+            return;
+        }
+
+        foreach (var entry in history)
+        {
+            var stamp = entry.CheckedAt.ToString("u");
+            var details = string.IsNullOrWhiteSpace(entry.Details) ? "" : $" | {entry.Details}";
+            Console.WriteLine($"- {stamp} | {entry.Status}{details}");
+        }
+    }
+
     public static void PrintStatus(IReadOnlyList<SourceStatus> statuses)
     {
         if (statuses.Count == 0)
@@ -144,6 +189,31 @@ public static class Cli
         }
     }
 
+    public static void PrintSourceHealth(IReadOnlyList<SourceHealth> health, int days)
+    {
+        if (health.Count == 0)
+        {
+            Console.WriteLine("No sources registered.");
+            return;
+        }
+
+        Console.WriteLine($"Source health for last {days} days:");
+        foreach (var source in health)
+        {
+            var last = source.LastCheckedAt.HasValue
+                ? source.LastCheckedAt.Value.ToString("u")
+                : "never";
+            var hoursSince = source.HoursSinceLast.HasValue
+                ? $"{source.HoursSinceLast.Value}h"
+                : "n/a";
+            var lastStatus = string.IsNullOrWhiteSpace(source.LastStatus) ? "none" : source.LastStatus;
+            var staleLabel = source.IsStale ? "stale" : "fresh";
+            Console.WriteLine($"- {source.Name} ({source.Owner}, SLA: {source.SlaHours}h, {staleLabel})");
+            Console.WriteLine($"  last: {last} | status: {lastStatus} | age: {hoursSince}");
+            Console.WriteLine($"  checks: {source.TotalChecks} (ok {source.OkCount}, warning {source.WarningCount}, failed {source.FailedCount}) | breaches: {source.BreachCount}");
+        }
+    }
+
     public static void PrintHelp()
     {
         Console.WriteLine("Groupscholar Data Freshness Warden");
@@ -152,7 +222,10 @@ public static class Cli
         Console.WriteLine("  add-source --name <name> --owner <owner> --sla-hours <hours> [--notes <notes>]");
         Console.WriteLine("  log-check --source <name> --status <ok|warning|failed> [--details <details>]");
         Console.WriteLine("  status [--owner <owner>]");
+        Console.WriteLine("  rollup");
         Console.WriteLine("  list-stale");
+        Console.WriteLine("  source-history --name <name> [--limit <limit>]");
+        Console.WriteLine("  source-health [--days <days>]");
         Console.WriteLine("  remove-source --name <name>");
         Console.WriteLine("  summary [--days <days>]");
         Console.WriteLine();

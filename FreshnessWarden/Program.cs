@@ -44,8 +44,20 @@ try
                 : db.GetSourceStatusForOwner(owner);
             Cli.PrintStatus(statuses);
             break;
+        case "rollup":
+            Cli.PrintRollup(db.GetSourceRollups());
+            break;
         case "list-stale":
             Cli.PrintStale(db.GetStaleSources());
+            break;
+        case "source-history":
+            var sourceName = Cli.Require(options, "name");
+            var limit = Cli.OptionalInt(options, "limit") ?? 10;
+            Cli.PrintHistory(sourceName, db.GetSourceHistory(sourceName, limit));
+            break;
+        case "source-health":
+            var healthDays = Cli.OptionalInt(options, "days") ?? 14;
+            Cli.PrintSourceHealth(db.GetSourceHealth(healthDays), healthDays);
             break;
         case "remove-source":
             var removed = db.RemoveSource(Cli.Require(options, "name"));

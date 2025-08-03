@@ -129,6 +129,93 @@ public sealed class Db : IDisposable
         return new SummaryReport(days, ok, warning, failed, stale);
     }
 
+    public IReadOnlyList<SourceHealth> GetSourceHealth(int days)
+    {
+        var sources = GetSources();
+        var since = DateTime.UtcNow.AddDays(-days);
+        var nowUtc = DateTime.UtcNow;
+
+        var checksBySource = new Dictionary<int, List<SourceCheckWindow>>();
+        using (var cmd = _connection.CreateCommand())
+        {
+            cmd.CommandText = $@"
+                select source_id, status, checked_at, is_recent
+                from (
+                    select c.source_id, c.status, c.checked_at, true as is_recent
+                    from {Schema}.checks c
+                    where c.checked_at >= @since
+                    union all
+                    select distinct on (c.source_id) c.source_id, c.status, c.checked_at, false as is_recent
+                    from {Schema}.checks c
+                    where c.checked_at < @since
+                    order by c.source_id, c.checked_at desc
+                ) t
+                order by source_id, checked_at;
+            ";
+            cmd.Parameters.AddWithValue("since", since);
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                var sourceId = reader.GetInt32(0);
+                if (!checksBySource.TryGetValue(sourceId, out var list))
+                {
+                    list = new List<SourceCheckWindow>();
+                    checksBySource[sourceId] = list;
+                }
+
+                var checkedAt = reader.GetDateTime(2).ToUniversalTime();
+                list.Add(new SourceCheckWindow(
+                    checkedAt,
+                    reader.GetString(1),
+                    reader.GetBoolean(3)));
+            }
+        }
+
+        var results = new List<SourceHealth>();
+        foreach (var source in sources)
+        {
+            checksBySource.TryGetValue(source.Id, out var checks);
+            checks ??= new List<SourceCheckWindow>();
+
+            var orderedChecks = checks
+                .OrderBy(check => check.CheckedAt)
+                .ToList();
+
+            var lastCheck = orderedChecks.LastOrDefault();
+            var lastCheckedAt = lastCheck?.CheckedAt;
+            var hoursSinceLast = lastCheckedAt.HasValue
+                ? (int)Math.Floor((nowUtc - lastCheckedAt.Value).TotalHours)
+                : null;
+
+            var recentChecks = checks.Where(check => check.IsRecent).ToList();
+            var ok = recentChecks.Count(check => check.Status == "ok");
+            var warning = recentChecks.Count(check => check.Status == "warning");
+            var failed = recentChecks.Count(check => check.Status == "failed");
+            var breachCount = HealthCalculator.CountBreaches(
+                orderedChecks.Select(check => check.CheckedAt).ToList(),
+                source.SlaHours);
+
+            results.Add(new SourceHealth(
+                source.Id,
+                source.Name,
+                source.Owner,
+                source.SlaHours,
+                lastCheckedAt,
+                hoursSinceLast,
+                lastCheck?.Status,
+                Staleness.IsStale(lastCheckedAt, source.SlaHours, nowUtc),
+                ok,
+                warning,
+                failed,
+                breachCount,
+                recentChecks.Count));
+        }
+
+        return results
+            .OrderBy(result => result.Name)
+            .ToList();
+    }
+
     public IReadOnlyList<SourceRollup> GetSourceRollups()
     {
         using var cmd = _connection.CreateCommand();
@@ -294,6 +381,29 @@ public sealed class Db : IDisposable
         ";
         cmd.Parameters.AddWithValue("name", name);
         return cmd.ExecuteNonQuery() > 0;
+    }
+
+    private List<SourceInfo> GetSources()
+    {
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = $@"
+            select id, name, owner, sla_hours
+            from {Schema}.sources
+            order by name;
+        ";
+
+        var results = new List<SourceInfo>();
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            results.Add(new SourceInfo(
+                reader.GetInt32(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.GetInt32(3)));
+        }
+
+        return results;
     }
 
     private List<StaleSource> GetSourcesWithLastCheck()

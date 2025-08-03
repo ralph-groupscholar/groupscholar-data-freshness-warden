@@ -9,3 +9,8 @@
 - Added source status reporting (latest check) with optional owner filter.
 - Added source removal command and expanded CLI usage docs.
 - Added CLI parsing tests for option handling and status validation.
+
+## 2026-02-08
+- Added source health reporting with SLA breach counts and recent check breakdowns.
+- Exposed rollup and history commands in the CLI and documented new workflows.
+- Added health breach unit tests.
