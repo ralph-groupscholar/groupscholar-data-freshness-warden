@@ -25,6 +25,17 @@ public record SourceHealth(
     int BreachCount,
     int TotalChecks);
 
+public record OwnerHealth(
+    string Owner,
+    int SourceCount,
+    int StaleCount,
+    int OkCount,
+    int WarningCount,
+    int FailedCount,
+    int BreachCount,
+    DateTime? LastCheckedAt,
+    string? LastStatus);
+
 public record SourceRollup(
     int Id,
     string Name,
@@ -39,3 +50,12 @@ public record SourceRollup(
 public record SourceCheck(DateTime CheckedAt, string Status, string? Details);
 
 public record SourceStatus(int Id, string Name, string Owner, int SlaHours, DateTime? LastCheckedAt, string? LastStatus);
+
+public record OwnerSummary(
+    string Owner,
+    int TotalSources,
+    int StaleSources,
+    int OkCount,
+    int WarningCount,
+    int FailedCount,
+    DateTime? LatestCheckAt);

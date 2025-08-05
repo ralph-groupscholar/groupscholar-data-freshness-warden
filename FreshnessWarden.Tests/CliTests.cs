@@ -45,4 +45,55 @@ public class CliTests
 
         Assert.Throws<InvalidOperationException>(() => Cli.RequireStatus(options, "status"));
     }
+
+    [Fact]
+    public void PrintOwnerSummaryHandlesEmptyList()
+    {
+        using var writer = new StringWriter();
+        var original = Console.Out;
+        Console.SetOut(writer);
+        try
+        {
+            Cli.PrintOwnerSummary(Array.Empty<OwnerSummary>(), 7);
+        }
+        finally
+        {
+            Console.SetOut(original);
+        }
+
+        Assert.Contains("No owners registered.", writer.ToString());
+    }
+
+    [Fact]
+    public void PrintOwnerSummaryRendersOwnerMetrics()
+    {
+        var summaries = new List<OwnerSummary>
+        {
+            new OwnerSummary(
+                "Scholar Ops",
+                2,
+                1,
+                3,
+                1,
+                0,
+                new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc))
+        };
+
+        using var writer = new StringWriter();
+        var original = Console.Out;
+        Console.SetOut(writer);
+        try
+        {
+            Cli.PrintOwnerSummary(summaries, 7);
+        }
+        finally
+        {
+            Console.SetOut(original);
+        }
+
+        var output = writer.ToString();
+        Assert.Contains("Owner summary for last 7 days:", output);
+        Assert.Contains("- Scholar Ops (sources: 2, stale: 1)", output);
+        Assert.Contains("checks: ok 3, warning 1, failed 0", output);
+    }
 }

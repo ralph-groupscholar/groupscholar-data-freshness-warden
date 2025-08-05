@@ -59,6 +59,10 @@ try
             var healthDays = Cli.OptionalInt(options, "days") ?? 14;
             Cli.PrintSourceHealth(db.GetSourceHealth(healthDays), healthDays);
             break;
+        case "owner-summary":
+            var ownerDays = Cli.OptionalInt(options, "days") ?? 7;
+            Cli.PrintOwnerSummary(db.GetOwnerSummary(ownerDays), ownerDays);
+            break;
         case "remove-source":
             var removed = db.RemoveSource(Cli.Require(options, "name"));
             Console.WriteLine(removed ? "Source removed." : "Source not found.");

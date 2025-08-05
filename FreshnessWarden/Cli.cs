@@ -214,6 +214,46 @@ public static class Cli
         }
     }
 
+    public static void PrintOwnerSummary(IReadOnlyList<OwnerSummary> summaries, int days)
+    {
+        if (summaries.Count == 0)
+        {
+            Console.WriteLine("No owners registered.");
+            return;
+        }
+
+        Console.WriteLine($"Owner summary for last {days} days:");
+        foreach (var summary in summaries)
+        {
+            var latest = summary.LatestCheckAt.HasValue
+                ? summary.LatestCheckAt.Value.ToString("u")
+                : "never";
+            Console.WriteLine($"- {summary.Owner} (sources: {summary.TotalSources}, stale: {summary.StaleSources})");
+            Console.WriteLine($"  checks: ok {summary.OkCount}, warning {summary.WarningCount}, failed {summary.FailedCount} | latest: {latest}");
+        }
+    }
+
+    public static void PrintOwnerHealth(IReadOnlyList<OwnerHealth> health, int days)
+    {
+        if (health.Count == 0)
+        {
+            Console.WriteLine("No owners registered.");
+            return;
+        }
+
+        Console.WriteLine($"Owner health for last {days} days:");
+        foreach (var owner in health)
+        {
+            var last = owner.LastCheckedAt.HasValue
+                ? owner.LastCheckedAt.Value.ToString("u")
+                : "never";
+            var lastStatus = string.IsNullOrWhiteSpace(owner.LastStatus) ? "none" : owner.LastStatus;
+            Console.WriteLine($"- {owner.Owner} (sources: {owner.SourceCount}, stale: {owner.StaleCount})");
+            Console.WriteLine($"  last: {last} | status: {lastStatus} | breaches: {owner.BreachCount}");
+            Console.WriteLine($"  checks: {owner.OkCount + owner.WarningCount + owner.FailedCount} (ok {owner.OkCount}, warning {owner.WarningCount}, failed {owner.FailedCount})");
+        }
+    }
+
     public static void PrintHelp()
     {
         Console.WriteLine("Groupscholar Data Freshness Warden");
@@ -226,6 +266,8 @@ public static class Cli
         Console.WriteLine("  list-stale");
         Console.WriteLine("  source-history --name <name> [--limit <limit>]");
         Console.WriteLine("  source-health [--days <days>]");
+        Console.WriteLine("  owner-summary [--days <days>]");
+        Console.WriteLine("  owner-health [--days <days>]");
         Console.WriteLine("  remove-source --name <name>");
         Console.WriteLine("  summary [--days <days>]");
         Console.WriteLine();

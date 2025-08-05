@@ -129,6 +129,130 @@ public sealed class Db : IDisposable
         return new SummaryReport(days, ok, warning, failed, stale);
     }
 
+    public IReadOnlyList<OwnerSummary> GetOwnerSummary(int days)
+    {
+        var since = DateTime.UtcNow.AddDays(-days);
+        var nowUtc = DateTime.UtcNow;
+
+        var sourceStats = new List<(string Owner, int SlaHours, DateTime? LastCheckedAt)>();
+        using (var cmd = _connection.CreateCommand())
+        {
+            cmd.CommandText = $@"
+                select s.owner, s.sla_hours, last_check.checked_at
+                from {Schema}.sources s
+                left join lateral (
+                    select c.checked_at
+                    from {Schema}.checks c
+                    where c.source_id = s.id
+                    order by c.checked_at desc, c.id desc
+                    limit 1
+                ) as last_check on true
+                order by s.owner;
+            ";
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                var lastChecked = reader.IsDBNull(2) ? (DateTime?)null : reader.GetDateTime(2).ToUniversalTime();
+                sourceStats.Add((reader.GetString(0), reader.GetInt32(1), lastChecked));
+            }
+        }
+
+        var ownerCounts = new Dictionary<string, OwnerSummaryBuilder>(StringComparer.OrdinalIgnoreCase);
+        foreach (var source in sourceStats)
+        {
+            if (!ownerCounts.TryGetValue(source.Owner, out var builder))
+            {
+                builder = new OwnerSummaryBuilder(source.Owner);
+                ownerCounts[source.Owner] = builder;
+            }
+
+            builder.TotalSources++;
+            if (Staleness.IsStale(source.LastCheckedAt, source.SlaHours, nowUtc))
+            {
+                builder.StaleSources++;
+            }
+
+            if (source.LastCheckedAt.HasValue)
+            {
+                builder.LatestCheckAt = builder.LatestCheckAt.HasValue
+                    ? (builder.LatestCheckAt > source.LastCheckedAt ? builder.LatestCheckAt : source.LastCheckedAt)
+                    : source.LastCheckedAt;
+            }
+        }
+
+        using (var cmd = _connection.CreateCommand())
+        {
+            cmd.CommandText = $@"
+                select s.owner, c.status, count(*)
+                from {Schema}.checks c
+                inner join {Schema}.sources s on s.id = c.source_id
+                where c.checked_at >= @since
+                group by s.owner, c.status
+                order by s.owner;
+            ";
+            cmd.Parameters.AddWithValue("since", since);
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                var owner = reader.GetString(0);
+                if (!ownerCounts.TryGetValue(owner, out var builder))
+                {
+                    builder = new OwnerSummaryBuilder(owner);
+                    ownerCounts[owner] = builder;
+                }
+
+                var status = reader.GetString(1);
+                var count = reader.GetInt32(2);
+                switch (status)
+                {
+                    case "ok":
+                        builder.OkCount = count;
+                        break;
+                    case "warning":
+                        builder.WarningCount = count;
+                        break;
+                    case "failed":
+                        builder.FailedCount = count;
+                        break;
+                }
+            }
+        }
+
+        return ownerCounts.Values
+            .Select(builder => builder.Build())
+            .OrderBy(summary => summary.Owner)
+            .ToList();
+    }
+
+    private sealed class OwnerSummaryBuilder
+    {
+        public OwnerSummaryBuilder(string owner)
+        {
+            Owner = owner;
+        }
+
+        public string Owner { get; }
+        public int TotalSources { get; set; }
+        public int StaleSources { get; set; }
+        public int OkCount { get; set; }
+        public int WarningCount { get; set; }
+        public int FailedCount { get; set; }
+        public DateTime? LatestCheckAt { get; set; }
+
+        public OwnerSummary Build()
+        {
+            return new OwnerSummary(
+                Owner,
+                TotalSources,
+                StaleSources,
+                OkCount,
+                WarningCount,
+                FailedCount,
+                LatestCheckAt);
+        }
+    }
+
     public IReadOnlyList<SourceHealth> GetSourceHealth(int days)
     {
         var sources = GetSources();
@@ -214,6 +338,11 @@ public sealed class Db : IDisposable
         return results
             .OrderBy(result => result.Name)
             .ToList();
+    }
+
+    public IReadOnlyList<OwnerHealth> GetOwnerHealth(int days)
+    {
+        return OwnerHealthCalculator.Build(GetSourceHealth(days));
     }
 
     public IReadOnlyList<SourceRollup> GetSourceRollups()
