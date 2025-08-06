@@ -73,6 +73,24 @@ public sealed class Db : IDisposable
         cmd.ExecuteNonQuery();
     }
 
+    public bool UpdateSource(string name, string? owner, int? slaHours, string? notes, bool notesSpecified)
+    {
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = $@"
+            update {Schema}.sources
+            set owner = coalesce(@owner, owner),
+                sla_hours = coalesce(@sla_hours, sla_hours),
+                notes = case when @notes_specified then @notes else notes end
+            where name = @name;
+        ";
+        cmd.Parameters.AddWithValue("name", name);
+        cmd.Parameters.AddWithValue("owner", (object?)owner ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("sla_hours", (object?)slaHours ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("notes_specified", notesSpecified);
+        cmd.Parameters.AddWithValue("notes", (object?)notes ?? DBNull.Value);
+        return cmd.ExecuteNonQuery() > 0;
+    }
+
     public void LogCheck(string sourceName, string status, string? details)
     {
         var sourceId = GetSourceId(sourceName);

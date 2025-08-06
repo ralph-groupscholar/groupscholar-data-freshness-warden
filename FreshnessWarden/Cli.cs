@@ -88,6 +88,14 @@ public static class Cli
         };
     }
 
+    public static void EnsureAnyUpdateProvided(string? owner, int? slaHours, bool notesSpecified)
+    {
+        if (owner == null && slaHours == null && !notesSpecified)
+        {
+            throw new InvalidOperationException("Provide at least one of --owner, --sla-hours, --notes, or --clear-notes.");
+        }
+    }
+
     public static void PrintStale(IReadOnlyList<StaleSource> staleSources)
     {
         if (staleSources.Count == 0)
@@ -268,6 +276,7 @@ public static class Cli
         Console.WriteLine("  source-health [--days <days>]");
         Console.WriteLine("  owner-summary [--days <days>]");
         Console.WriteLine("  owner-health [--days <days>]");
+        Console.WriteLine("  update-source --name <name> [--owner <owner>] [--sla-hours <hours>] [--notes <notes> | --clear-notes]");
         Console.WriteLine("  remove-source --name <name>");
         Console.WriteLine("  summary [--days <days>]");
         Console.WriteLine();

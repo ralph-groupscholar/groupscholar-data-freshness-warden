@@ -19,3 +19,12 @@
 - Added source health reporting with SLA breach counts and recent check breakdowns.
 - Exposed rollup and history commands in the CLI and documented new workflows.
 - Added health breach unit tests.
+
+## 2026-02-08
+- Wired the owner-health command into the CLI workflow and documented it.
+- Added owner health aggregation tests to cover case-insensitive grouping and last-check handling.
+
+## 2026-02-08
+- Added update-source command with optional owner/SLA/notes changes and clear-notes support.
+- Added validation helper and owner health CLI test coverage.
+- Documented update-source workflow in README and CLI help output.

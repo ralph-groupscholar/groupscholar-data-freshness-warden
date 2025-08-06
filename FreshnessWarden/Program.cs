@@ -63,6 +63,20 @@ try
             var ownerDays = Cli.OptionalInt(options, "days") ?? 7;
             Cli.PrintOwnerSummary(db.GetOwnerSummary(ownerDays), ownerDays);
             break;
+        case "owner-health":
+            var ownerHealthDays = Cli.OptionalInt(options, "days") ?? 14;
+            Cli.PrintOwnerHealth(db.GetOwnerHealth(ownerHealthDays), ownerHealthDays);
+            break;
+        case "update-source":
+            var updateName = Cli.Require(options, "name");
+            var updateOwner = Cli.Optional(options, "owner");
+            var updateSla = Cli.OptionalInt(options, "sla-hours");
+            var notesSpecified = options.ContainsKey("notes") || options.ContainsKey("clear-notes");
+            var updateNotes = options.ContainsKey("clear-notes") ? null : Cli.Optional(options, "notes");
+            Cli.EnsureAnyUpdateProvided(updateOwner, updateSla, notesSpecified);
+            var updated = db.UpdateSource(updateName, updateOwner, updateSla, updateNotes, notesSpecified);
+            Console.WriteLine(updated ? "Source updated." : "Source not found.");
+            break;
         case "remove-source":
             var removed = db.RemoveSource(Cli.Require(options, "name"));
             Console.WriteLine(removed ? "Source removed." : "Source not found.");

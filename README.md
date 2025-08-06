@@ -8,6 +8,8 @@ Data freshness tracking for Group Scholar operational sources. This CLI logs sou
 - View latest status per source
 - Review per-source health with SLA breach counts
 - Summarize freshness signals by owner
+- Roll up owner health with SLA breaches and latest status
+- Update source owners, SLAs, or notes as requirements evolve
 - Remove sources no longer tracked
 - List stale sources based on SLA hours
 - Generate summary reports for the last N days
@@ -54,6 +56,12 @@ dotnet run --project FreshnessWarden -- source-history --name "Scholar Applicati
 dotnet run --project FreshnessWarden -- source-health --days 14
 
 dotnet run --project FreshnessWarden -- owner-summary --days 7
+
+dotnet run --project FreshnessWarden -- owner-health --days 14
+
+dotnet run --project FreshnessWarden -- update-source --name "Scholar Application Export" --owner "Data Ops" --sla-hours 18
+
+dotnet run --project FreshnessWarden -- update-source --name "Scholar Application Export" --clear-notes
 
 dotnet run --project FreshnessWarden -- remove-source --name "Scholar Application Export"
 
